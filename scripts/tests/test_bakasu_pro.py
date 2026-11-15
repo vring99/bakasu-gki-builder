@@ -32,7 +32,9 @@ class ProWorkflowTests(unittest.TestCase):
                 if schema:
                     self.assertEqual(schema["default"], "35275", path.name)
                     if schema["type"] == "choice":
-                        expected = ["35275", "35285"] if path.name == "kernel-a16-6-12.yml" else ["35275"]
+                        full_families = {"kernel-a12-5-10.yml", "kernel-a13-5-15.yml", "kernel-a14-6-1.yml",
+                                         "kernel-a15-6-6.yml", "kernel-a16-6-12.yml", "kernel-a17-6-18.yml"}
+                        expected = ["35275", "35285"] if path.name in full_families else ["35275"]
                         self.assertEqual(schema["options"], expected)
             for job in workflow.get("jobs", {}).values():
                 selected = job.get("with", {}).get(INPUT)
@@ -74,10 +76,13 @@ class ProWorkflowTests(unittest.TestCase):
                     if version in KERNEL_PINS:
                         self.assertEqual(path.read_text().strip(), "BAKASU_COMMIT=" + KERNEL_PINS[version])
 
-    def test_targeted_35285_matrix(self):
+    def test_35285_matrix_complements_existing_23_run(self):
         job = read("kernel-a16-6-12.yml")["jobs"]["build-kernel-a16-6-12"]
         self.assertEqual(job["strategy"]["matrix"]["include"], [
-            {"sub_level": "23", "os_patch_level": "2025-06", "source_revision": "r58"}])
+            {"sub_level": "30", "os_patch_level": "2025-07", "source_revision": "r29"},
+            {"sub_level": "38", "os_patch_level": "2025-08", "source_revision": "r26"},
+            {"sub_level": "58", "os_patch_level": "2025-12"},
+            {"sub_level": "69", "os_patch_level": "2026-03"}])
         self.assertEqual(job["uses"], "./.github/workflows/build-make.yml")
 
     @unittest.skipUnless(GKI, "GKI manager workflow only")

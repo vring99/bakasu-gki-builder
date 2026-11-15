@@ -13,6 +13,7 @@ on:
         type: choice
         options:
           - "35275"
+          - "35285"
         default: "35275"
       version:
         description: "自定义版本名 (可选)"
