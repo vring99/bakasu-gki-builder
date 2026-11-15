@@ -125,40 +125,30 @@ on:
         default: false
 
 jobs:
+  verify-startup:
+    name: Verify SELinux startup regression
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: vring99/BakaSU
+          ref: 3c240cb185fe6fa71bfd47c6d987fa8e2004194a
+      - name: Check startup, permissions, policy records and access responses
+        run: |
+          python3 -m unittest discover -s scripts/tests -p test_selinux_setxattr_startup.py -v
+          python3 -m unittest discover -s scripts/tests -p test_inode_setxattr.py -v
+          python3 -m unittest discover -s scripts/tests -p test_susfs_policy_records.py -v
+          python3 -m unittest discover -s scripts/tests -p test_susfs_access_sequence.py -v
+
   build-kernels-a15-6-6:
+    needs: verify-startup
     name: "6.6.${{ matrix.sub_level }}-${{ matrix.os_patch_level }}"
     strategy:
       fail-fast: false
       matrix:
         include:
-          - sub_level: "30"
-            os_patch_level: "2024-08"
-          - sub_level: "46"
-            os_patch_level: "2024-09"
-
-          - sub_level: "50"
-            os_patch_level: "2024-10"
-          - sub_level: "66"
-            os_patch_level: "2025-02"
-          - sub_level: "77"
-            os_patch_level: "2025-03"
-          - sub_level: "82"
-            os_patch_level: "2025-04"
-          - sub_level: "87"
-            os_patch_level: "2025-05"
           - sub_level: "89"
             os_patch_level: "2025-06"
-          - sub_level: "92"
-            os_patch_level: "2025-07"
-            source_revision: "r21"
-          - sub_level: "98"
-            os_patch_level: "2025-09"
-          - sub_level: "102"
-            os_patch_level: "2025-10"
-          - sub_level: "118"
-            os_patch_level: "2026-01"
-          - sub_level: "127"
-            os_patch_level: "2026-04"
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
