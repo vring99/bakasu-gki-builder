@@ -134,7 +134,9 @@ jobs:
           #  os_patch_level: "2024-08"
           #- sub_level: "46"
           # os_patch_level: "2024-09"
-          # 6.12.23 is already covered by run 43688097030 at the same source pin.
+          - sub_level: "23"
+            os_patch_level: "2025-06"
+            source_revision: "r58"
           - sub_level: "30"
             os_patch_level: "2025-07"
             source_revision: "r29"

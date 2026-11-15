@@ -76,14 +76,27 @@ class ProWorkflowTests(unittest.TestCase):
                     if version in KERNEL_PINS:
                         self.assertEqual(path.read_text().strip(), "BAKASU_COMMIT=" + KERNEL_PINS[version])
 
-    def test_35285_matrix_complements_existing_23_run(self):
+    def test_fixed_35285_matrix_restores_23(self):
         job = read("kernel-a16-6-12.yml")["jobs"]["build-kernel-a16-6-12"]
         self.assertEqual(job["strategy"]["matrix"]["include"], [
+            {"sub_level": "23", "os_patch_level": "2025-06", "source_revision": "r58"},
             {"sub_level": "30", "os_patch_level": "2025-07", "source_revision": "r29"},
             {"sub_level": "38", "os_patch_level": "2025-08", "source_revision": "r26"},
             {"sub_level": "58", "os_patch_level": "2025-12"},
             {"sub_level": "69", "os_patch_level": "2026-03"}])
         self.assertEqual(job["uses"], "./.github/workflows/build-make.yml")
+
+    def test_fixed_full_matrix_reuses_only_verified_89(self):
+        expected = {"kernel-a12-5-10.yml": 16, "kernel-a13-5-15.yml": 21,
+                    "kernel-a14-6-1.yml": 22, "kernel-a15-6-6.yml": 12,
+                    "kernel-a16-6-12.yml": 5, "kernel-a17-6-18.yml": 3}
+        for name, count in expected.items():
+            job = next(iter(read(name)["jobs"].values()))
+            matrix = job["strategy"]["matrix"]["include"]
+            self.assertEqual(len(matrix), count, name)
+            if name == "kernel-a15-6-6.yml":
+                self.assertNotIn("89", [item["sub_level"] for item in matrix])
+        self.assertEqual(sum(expected.values()) + 1, 80)
 
     @unittest.skipUnless(GKI, "GKI manager workflow only")
     def test_manager_uses_private_signed_artifact(self):
