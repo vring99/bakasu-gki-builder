@@ -111,7 +111,7 @@ jobs:
         if: inputs.ksu_variant == 'BakaSU Pro'
         run: |
           case "$BAKASU_VERSION" in
-            35285) commit=3c240cb185fe6fa71bfd47c6d987fa8e2004194a ;;
+            35285) commit=d2b0371d9d42585b2e77c89707d4725cdff0b2bf ;;
             35275) commit=60dd965f5f4923d34e9df4afb8f95a923447f7b4 ;;
             *) echo "::error::Unsupported BakaSU Pro version: $BAKASU_VERSION"; exit 1 ;;
           esac
@@ -1131,6 +1131,14 @@ jobs:
             kernel/preinit/preinit.c kernel/preinit/preinit.h \
             kernel/manager/apk_sign.c kernel/manager/manager_sign.h
           echo "Using BakaSU Pro native integration; no SELinux source overlay"
+
+      - name: Repair native BakaSU Pro SUSFS type keys
+        id: bakasu_susfs_type_keys
+        if: inputs.ksu_variant == 'BakaSU Pro' && inputs.bakasu_version == '35285' && inputs.enable_susfs
+        run: |
+          KSU_SOURCE="$KERNEL_ROOT/KernelSU"
+          python3 "$KSU_SOURCE/scripts/susfs_type_keys.py" --file "$KERNEL_ROOT/common/fs/susfs.c"
+          python3 "$KSU_SOURCE/scripts/susfs_type_keys.py" --file "$KERNEL_ROOT/common/fs/susfs.c" --check
 
       - name: Select BakaSU Tracepoint hooks without SUSFS
         id: bakasu_tracepoint_setup
