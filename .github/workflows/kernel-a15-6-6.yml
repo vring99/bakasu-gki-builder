@@ -125,39 +125,33 @@ on:
         default: false
 
 jobs:
+  linux-native-regression:
+    name: Native Pro 35285 type-key and SELinux regressions
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: vring99/BakaSU
+          ref: d2b0371d9d42585b2e77c89707d4725cdff0b2bf
+      - name: Check source and run production-function regressions
+        run: |
+          test "$(git rev-parse HEAD)" = d2b0371d9d42585b2e77c89707d4725cdff0b2bf
+          command -v cc
+          CC=cc python3 -m unittest -v \
+            scripts.tests.test_susfs_type_keys \
+            scripts.tests.test_selinux_setxattr_startup \
+            scripts.tests.test_inode_setxattr \
+            scripts.tests.test_susfs_access_sequence
+
   build-kernels-a15-6-6:
     name: "6.6.${{ matrix.sub_level }}-${{ matrix.os_patch_level }}"
+    needs: linux-native-regression
     strategy:
       fail-fast: false
       matrix:
         include:
-          - sub_level: "30"
-            os_patch_level: "2024-08"
-          - sub_level: "46"
-            os_patch_level: "2024-09"
-
-          - sub_level: "50"
-            os_patch_level: "2024-10"
-          - sub_level: "66"
-            os_patch_level: "2025-02"
-          - sub_level: "77"
-            os_patch_level: "2025-03"
-          - sub_level: "82"
-            os_patch_level: "2025-04"
-          - sub_level: "87"
-            os_patch_level: "2025-05"
-          # 6.6.89 is reused from the verified native-fix run 43716530612.
-          - sub_level: "92"
-            os_patch_level: "2025-07"
-            source_revision: "r21"
-          - sub_level: "98"
-            os_patch_level: "2025-09"
-          - sub_level: "102"
-            os_patch_level: "2025-10"
-          - sub_level: "118"
-            os_patch_level: "2026-01"
-          - sub_level: "127"
-            os_patch_level: "2026-04"
+          - sub_level: "89"
+            os_patch_level: "2025-06"
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:

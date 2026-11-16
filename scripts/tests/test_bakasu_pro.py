@@ -86,17 +86,32 @@ class ProWorkflowTests(unittest.TestCase):
             {"sub_level": "69", "os_patch_level": "2026-03"}])
         self.assertEqual(job["uses"], "./.github/workflows/build-make.yml")
 
-    def test_fixed_full_matrix_reuses_only_verified_89(self):
+    def test_isolated_candidate_builds_only_89(self):
         expected = {"kernel-a12-5-10.yml": 16, "kernel-a13-5-15.yml": 21,
-                    "kernel-a14-6-1.yml": 22, "kernel-a15-6-6.yml": 12,
+                    "kernel-a14-6-1.yml": 22, "kernel-a15-6-6.yml": 1,
                     "kernel-a16-6-12.yml": 5, "kernel-a17-6-18.yml": 3}
         for name, count in expected.items():
-            job = next(iter(read(name)["jobs"].values()))
+            job = next(job for job in read(name)["jobs"].values() if "strategy" in job)
             matrix = job["strategy"]["matrix"]["include"]
             self.assertEqual(len(matrix), count, name)
             if name == "kernel-a15-6-6.yml":
-                self.assertNotIn("89", [item["sub_level"] for item in matrix])
-        self.assertEqual(sum(expected.values()) + 1, 80)
+                self.assertEqual(matrix, [{"sub_level": "89", "os_patch_level": "2025-06"}])
+
+    def test_candidate_requires_linux_native_regression_and_exact_susfs(self):
+        jobs = read("kernel-a15-6-6.yml")["jobs"]
+        self.assertEqual(jobs["build-kernels-a15-6-6"]["needs"], "linux-native-regression")
+        regression = jobs["linux-native-regression"]
+        self.assertEqual(regression["runs-on"], "ubuntu-24.04")
+        self.assertEqual(regression["steps"][0]["with"], {
+            "repository": "vring99/BakaSU", "ref": KERNEL_PINS["35285"]})
+        run = regression["steps"][1]["run"]
+        self.assertIn("CC=cc python3 -m unittest", run)
+        for suite in ("test_susfs_type_keys", "test_selinux_setxattr_startup",
+                      "test_inode_setxattr", "test_susfs_access_sequence"):
+            self.assertIn("scripts.tests." + suite, run)
+        config = (ROOT / "config/config").read_text(encoding="utf-8")
+        self.assertIn("\ncustom=true\n", config)
+        self.assertIn("\ngki-android15-6.6=f98f08223bbf469cc0a1542166383d253557fc32\n", config)
 
     @unittest.skipUnless(GKI, "GKI manager workflow only")
     def test_manager_uses_private_signed_artifact(self):
