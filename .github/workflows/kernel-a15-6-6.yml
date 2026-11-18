@@ -146,7 +146,8 @@ jobs:
             os_patch_level: "2025-04"
           - sub_level: "87"
             os_patch_level: "2025-05"
-          # 6.6.89 is reused from the verified type-key-fix run 43838879386.
+          - sub_level: "89"
+            os_patch_level: "2025-06"
           - sub_level: "92"
             os_patch_level: "2025-07"
             source_revision: "r21"

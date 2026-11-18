@@ -14,7 +14,7 @@ BUILDERS = ("build.yml", "build-make.yml") if GKI else ("Build Kernel OnePlus.ym
 INPUT = "bakasu_version" if GKI else "BAKASU_VERSION"
 PIN = "b89b9d960ec788460a7a6e4289f869762f306957"
 KERNEL_PIN = "60dd965f5f4923d34e9df4afb8f95a923447f7b4"
-KERNEL_PINS = {"35275": KERNEL_PIN, "35285": "d2b0371d9d42585b2e77c89707d4725cdff0b2bf"}
+KERNEL_PINS = {"35275": KERNEL_PIN, "35285": "778c10e3fd57de16f40b6f6ee0f551ffb60f8d5d"}
 BASH = os.environ.get("BAKASU_TEST_BASH", "bash")
 
 def read(name):
@@ -86,17 +86,18 @@ class ProWorkflowTests(unittest.TestCase):
             {"sub_level": "69", "os_patch_level": "2026-03"}])
         self.assertEqual(job["uses"], "./.github/workflows/build-make.yml")
 
-    def test_fixed_full_matrix_reuses_only_verified_89(self):
+    def test_full_matrix_builds_all_80_targets(self):
         expected = {"kernel-a12-5-10.yml": 16, "kernel-a13-5-15.yml": 21,
-                    "kernel-a14-6-1.yml": 22, "kernel-a15-6-6.yml": 12,
+                    "kernel-a14-6-1.yml": 22, "kernel-a15-6-6.yml": 13,
                     "kernel-a16-6-12.yml": 5, "kernel-a17-6-18.yml": 3}
         for name, count in expected.items():
             job = next(iter(read(name)["jobs"].values()))
             matrix = job["strategy"]["matrix"]["include"]
             self.assertEqual(len(matrix), count, name)
             if name == "kernel-a15-6-6.yml":
-                self.assertNotIn("89", [item["sub_level"] for item in matrix])
-        self.assertEqual(sum(expected.values()) + 1, 80)
+                self.assertEqual([item for item in matrix if item["sub_level"] == "89"],
+                                 [{"sub_level": "89", "os_patch_level": "2025-06"}])
+        self.assertEqual(sum(expected.values()), 80)
 
     @unittest.skipUnless(GKI, "GKI manager workflow only")
     def test_manager_uses_private_signed_artifact(self):
