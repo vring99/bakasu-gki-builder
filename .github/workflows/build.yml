@@ -38,8 +38,8 @@ on:
       bakasu_version:
         required: false
         type: string
-        description: "BakaSU Pro version (35275)"
-        default: "35275"
+        description: "BakaSU Pro version"
+        default: "35295"
 
       # ==================== 可选配置 ====================
       version:
@@ -111,6 +111,7 @@ jobs:
         if: inputs.ksu_variant == 'BakaSU Pro'
         run: |
           case "$BAKASU_VERSION" in
+            35295) commit=36c14ab8cd7b69a707f6dd3aabd5805a837036fd ;;
             35285) commit=7f9baf5baf904edcbc9f339c792215b32fae0be0 ;;
             35275) commit=60dd965f5f4923d34e9df4afb8f95a923447f7b4 ;;
             *) echo "::error::Unsupported BakaSU Pro version: $BAKASU_VERSION"; exit 1 ;;
@@ -1134,7 +1135,7 @@ jobs:
 
       - name: Repair native BakaSU Pro SUSFS type keys
         id: bakasu_susfs_type_keys
-        if: inputs.ksu_variant == 'BakaSU Pro' && inputs.bakasu_version == '35285' && inputs.enable_susfs
+        if: inputs.ksu_variant == 'BakaSU Pro' && (inputs.bakasu_version == '35285' || inputs.bakasu_version == '35295') && inputs.enable_susfs
         run: |
           KSU_SOURCE="$KERNEL_ROOT/KernelSU"
           python3 "$KSU_SOURCE/scripts/susfs_type_keys.py" --file "$KERNEL_ROOT/common/fs/susfs.c"
