@@ -1,3 +1,10 @@
+## 上游来源
+
+- 直接上游：[zzh20188/GKI_KernelSU_SUSFS](https://github.com/zzh20188/GKI_KernelSU_SUSFS)
+- 原始源仓：[WildKernels/GKI_KernelSU_SUSFS](https://github.com/WildKernels/GKI_KernelSU_SUSFS)
+
+本仓是独立的私有 GKI 编译仓库。后续对照上游时，将直接上游配置为 `upstream`，先 `git fetch upstream --no-tags`，再按文件或提交检查构建流程和内核补丁的差异。按需合入，不整批覆盖本仓的版本固定、构建参数和打包规则。
+
 <div align="center">
 
 # GKI KernelSU SUSFS
