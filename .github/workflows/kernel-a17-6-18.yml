@@ -5,6 +5,9 @@ permissions:
   actions: write
 
 on:
+  push:
+    branches: [vring-resukisu]
+    paths: ['.github/workflows/kernel-a17-6-18.yml']
   workflow_dispatch:
     inputs:
       bakasu_version:
@@ -64,6 +67,7 @@ on:
 
 jobs:
   build-kernel-a17-6-18:
+    if: github.event_name != 'push'
     name: "6.18.${{ matrix.sub_level }}-${{ matrix.os_patch_level }}"
     strategy:
       fail-fast: false
