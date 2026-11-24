@@ -111,6 +111,7 @@ jobs:
         if: inputs.ksu_variant == 'BakaSU Pro'
         run: |
           case "$BAKASU_VERSION" in
+            35305) commit=5d3c0d1ac8deaa5117526b07c5dca1b451a03c7c ;;
             35295) commit=36c14ab8cd7b69a707f6dd3aabd5805a837036fd ;;
             35285) commit=7f9baf5baf904edcbc9f339c792215b32fae0be0 ;;
             35275) commit=60dd965f5f4923d34e9df4afb8f95a923447f7b4 ;;
@@ -546,6 +547,8 @@ jobs:
       # 根据选择的变体添加对应的 KernelSU
       - name: 添加 KernelSU
         working-directory: ${{ env.KERNEL_ROOT }}
+        env:
+          BAKASU_DEPLOY_KEY: ${{ inputs.ksu_variant == 'BakaSU Pro' && secrets.BAKASU_DEPLOY_KEY }}
         run: |
           case "${{ inputs.ksu_variant }}" in
             "Official")
@@ -594,13 +597,7 @@ jobs:
               ;;
             "BakaSU Pro")
               echo "添加 BakaSU Pro $BAKASU_VERSION..."
-              git clone --branch codex/build-35233 https://github.com/vring99/BakaSU.git KernelSU
-              curl -fLSs "https://raw.githubusercontent.com/vring99/BakaSU/$BAKASU_COMMIT/kernel/setup.sh" -o "$RUNNER_TEMP/bakasu-setup.sh"
-              bash "$RUNNER_TEMP/bakasu-setup.sh" "$BAKASU_COMMIT"
-              if [ "$(git -C KernelSU rev-parse HEAD)" != "$BAKASU_COMMIT" ]; then
-                echo "::error::BakaSU Pro checkout does not match pinned commit $BAKASU_COMMIT"
-                exit 1
-              fi
+              bash "$GITHUB_WORKSPACE/scripts/checkout_bakasu.sh" "$BAKASU_COMMIT"
               echo 'CONFIG_KSU_FULL_NAME_FORMAT="%TAG_NAME%-%COMMIT_SHA%@vring"' >> ./common/arch/arm64/configs/gki_defconfig
               cd ./KernelSU
               # Read the fixed native release version, not the commit count.

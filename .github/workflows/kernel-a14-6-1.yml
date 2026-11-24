@@ -26,6 +26,7 @@ on:
           - "35275"
           - "35285"
           - "35295"
+          - "35305"
         default: "35295"
       kernelsu_branch:
         description: "KSU 分支"
