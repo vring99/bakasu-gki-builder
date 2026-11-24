@@ -5,9 +5,6 @@ permissions:
   actions: write
 
 on:
-  push:
-    branches: [vring-resukisu]
-    paths: ['.github/workflows/kernel-a14-6-1.yml']
   workflow_dispatch:
     inputs:
       kernelsu_variant:
@@ -120,7 +117,6 @@ on:
 
 jobs:
   build-kernels-a14-6-1:
-    if: github.event_name != 'push'
     name: "6.1.${{ matrix.sub_level }}-${{ matrix.os_patch_level }}"
     strategy:
       fail-fast: false

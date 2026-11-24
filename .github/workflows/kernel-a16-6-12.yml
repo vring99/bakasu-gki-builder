@@ -4,9 +4,6 @@ permissions:
   actions: write   # Allows triggering actions
 
 on:
-  push:
-    branches: [vring-resukisu]
-    paths: ['.github/workflows/kernel-a16-6-12.yml']
   workflow_dispatch:
     inputs:
       kernelsu_variant:
@@ -127,7 +124,6 @@ on:
 
 jobs:
   build-kernel-a16-6-12:
-    if: github.event_name != 'push'
     name: "6.12.${{ matrix.sub_level }}-${{ matrix.os_patch_level }}"
     strategy:
       fail-fast: false
