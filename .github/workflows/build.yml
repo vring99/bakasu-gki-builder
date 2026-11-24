@@ -94,7 +94,7 @@ jobs:
     name: "${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.android_version }}-${{ inputs.os_patch_level }}-${{ inputs.ksu_variant }}"
     # Ubuntu 26.04 headers break the libbpf bundled with older kernels.
     runs-on: ubuntu-24.04
-    timeout-minutes: ${{ inputs.android_version == 'android17' && inputs.kernel_version == '6.18' && 120 || 60 }}
+    timeout-minutes: 120
 
     # ==================== 环境变量配置 ====================
     # ccache 配置用于加速重复编译
@@ -1266,7 +1266,7 @@ jobs:
         if: "!(inputs.android_version == 'android17' && inputs.kernel_version == '6.18')"
         uses: nick-fields/retry@v3
         with:
-          timeout_minutes: 30
+          timeout_minutes: 90
           max_attempts: 3
           retry_on: timeout
           command: |
