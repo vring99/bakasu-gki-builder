@@ -10,7 +10,6 @@ name: 内核构建流程
 permissions:
   contents: write
   actions: write
-  statuses: write
 
 on:
   workflow_call:
@@ -1305,20 +1304,12 @@ jobs:
           cp "$DEFCONFIG.orig" "$DEFCONFIG"
 
       - name: Start runner telemetry
-        env:
-          DIAG_TOKEN: ${{ github.token }}
+        if: inputs.kernel_version == '6.1'
         run: |
-          dir="$RUNNER_TEMP/diag-145"
+          dir="$RUNNER_TEMP/gki61-diagnostic"
           mkdir -p "$dir"
           touch "$dir/targets.log"
           python3 -u scripts/runner_resources.py "$KERNEL_ROOT" "$dir" > "$dir/resources.jsonl" 2>"$dir/sampler.log" < /dev/null &
-          for i in {1..25}; do
-            test -f "$dir/ready" && exit 0
-            sleep 1
-          done
-          cat "$dir/sampler.log"
-          echo "::error::Runner telemetry did not acknowledge its first sample"
-          exit 1
 
       - name: 编译内核
         if: "!(inputs.android_version == 'android17' && inputs.kernel_version == '6.18')"
@@ -1328,9 +1319,11 @@ jobs:
           max_attempts: 1
           retry_on: timeout
           command: |
-            tail -n 1 -f "$RUNNER_TEMP/diag-145/targets.log" &
-            tail_pid=$!
-            trap 'kill "$tail_pid" 2>/dev/null || true' EXIT
+            if [ -f "$RUNNER_TEMP/gki61-diagnostic/targets.log" ]; then
+              tail -n 1 -f "$RUNNER_TEMP/gki61-diagnostic/targets.log" &
+              tail_pid=$!
+              trap 'kill "$tail_pid" 2>/dev/null || true' EXIT
+            fi
             echo "当前 KSU 最新提交日期: ${KSU_LATEST_COMMIT_DATE}"
             echo "当前 SUSFS 最新提交日期: ${SUSFS_LATEST_COMMIT_DATE}"
             set -ex
@@ -1391,19 +1384,19 @@ jobs:
       # ==================== 准备 Boot 镜像 ====================
       # 复制编译产物到工作目录
       - name: Finish runner telemetry
-        if: always()
+        if: always() && inputs.kernel_version == '6.1'
         run: |
-          dir="$RUNNER_TEMP/diag-145"
+          dir="$RUNNER_TEMP/gki61-diagnostic"
           test -d "$dir" || exit 0
           touch "$dir/stop"
           sudo -n dmesg --time-format iso 2>/dev/null | grep -Ei 'oom-kill|out of memory|killed process|I/O error|EXT4-fs error' | tail -n 30 > "$dir/kernel-events.txt" || true
           tail -n 2 "$dir/resources.jsonl" || true
       - name: Archive runner telemetry
-        if: always()
+        if: always() && inputs.kernel_version == '6.1'
         uses: actions/upload-artifact@v4
         with:
-          name: runner-diagnostics-6.1.145-${{ github.run_id }}
-          path: ${{ runner.temp }}/diag-145/
+          name: runner-diagnostics-6.1.${{ inputs.sub_level }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/gki61-diagnostic/
           if-no-files-found: ignore
 
       - name: 准备 Boot 镜像

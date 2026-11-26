@@ -5,7 +5,6 @@ import re
 import sys
 import time
 from pathlib import Path
-from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 
 def pairs(path):
@@ -90,20 +89,8 @@ def brief(d, first):
             f"clang={n('clang')} ld={n('lld') + n('ld.lld')} make={n('make')}")
 
 
-class NoRedirect(HTTPRedirectHandler):
-    def redirect_request(self, *args):
-        return None
-
-
 def main(directory, out):
-    sha = os.environ["GITHUB_SHA"]
-    assert re.fullmatch("[a-f0-9]{40}", sha)
-    assert os.environ["GITHUB_REPOSITORY"].lower() == "vring99/bakasu-gki-builder"
-    url = f"https://api.github.com/repos/vring99/bakasu-gki-builder/statuses/{sha}"
-    token = os.environ.pop("DIAG_TOKEN")
-    opener = build_opener(NoRedirect())
     first = None
-    last = -100
     while not (out / "stop").exists():
         d = sample(directory)
         first = first or d
@@ -112,19 +99,6 @@ def main(directory, out):
         targets = ",".join(d["targets"]) or "not-sampled"
         with (out / "targets.log").open("a", encoding="ascii") as log:
             print(time.strftime("%H:%M:%SZ", time.gmtime()), summary, targets, file=log)
-        if time.monotonic() - last >= 55:
-            body = dict(state="success", context="diagnostics/resource-sample",
-                        description=(summary + " " + targets)[:140])
-            req = Request(url, data=json.dumps(body).encode(), headers={
-                "Authorization": "Bearer " + token, "Content-Type": "application/json"})
-            try:
-                with opener.open(req, timeout=10) as r:
-                    if r.status != 201:
-                        raise ValueError("unexpected status")
-                (out / "ready").touch()
-                last = time.monotonic()
-            except (OSError, ValueError) as exc:
-                print("sample publish failed", type(exc).__name__, getattr(exc, "code", ""), file=sys.stderr)
         time.sleep(30)
 
 
