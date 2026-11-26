@@ -10,6 +10,7 @@ name: 内核构建流程
 permissions:
   contents: write
   actions: write
+  statuses: write
 
 on:
   workflow_call:
@@ -94,7 +95,7 @@ jobs:
     name: "${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.android_version }}-${{ inputs.os_patch_level }}-${{ inputs.ksu_variant }}"
     # Ubuntu 26.04 headers break the libbpf bundled with older kernels.
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 60
 
     # ==================== 环境变量配置 ====================
     # ccache 配置用于加速重复编译
@@ -151,13 +152,40 @@ jobs:
           remove_dotnet: true
           remove_haskell: true
           remove_tool_cache: true
-          remove_swap: true
+          remove_swap: false
           remove_packages: "azure-cli google-cloud-cli microsoft-edge-stable google-chrome-stable firefox postgresql* temurin-* *llvm* mysql* dotnet-sdk-*"
           remove_packages_one_command: true
           remove_folders: "/usr/share/swift /usr/share/miniconda /usr/share/az* /usr/local/lib/node_modules /usr/local/share/chromium /usr/local/share/powershell /usr/local/julia /usr/local/aws-cli /usr/local/aws-sam-cli /usr/share/gradle"
           rm_cmd: "rmz"
           rmz_version: "3.1.1"
           testing: false
+
+      - name: Prepare runner swap if missing
+        shell: bash
+        run: |
+          set -euo pipefail
+          active() { swapon --show=SIZE --bytes --noheadings | awk '$1+0 > 0 {ok=1} END {exit !ok}'; }
+          free -h
+          df -h "$GITHUB_WORKSPACE"
+          printf 'CPU count: %s\n' "$(nproc)"
+          if ! active; then
+            workspace_dev=$(stat -c %d "$GITHUB_WORKSPACE")
+            for dir in /mnt "$RUNNER_TEMP"; do
+              [[ -d "$dir" ]] || continue
+              reserve=1024
+              if [[ $(stat -c %d "$dir") == "$workspace_dev" ]]; then reserve=32768; fi
+              free_mib=$(df -Pm "$dir" | awk 'END {print $4}')
+              ((free_mib >= reserve + 3072)) || continue
+              file=$(sudo mktemp "$dir/gki61-swap.XXXXXXXX") || continue
+              if sudo fallocate -l 3G "$file" && sudo mkswap "$file" && sudo swapon "$file"; then
+                echo "Enabled 3 GiB swap on $dir"
+                break
+              fi
+              sudo rm -f -- "$file"
+            done
+          fi
+          swapon --show --bytes
+          active || { echo "::error::Cannot provide swap without using reserved build space."; exit 1; }
 
       # ==================== 检出仓库代码 ====================
       - name: 检出代码仓库
@@ -1262,14 +1290,47 @@ jobs:
           retry_on: timeout
           command: bash "$GITHUB_WORKSPACE/scripts/build_android17.sh"
 
+      - name: Prepare the Kleaf config fragment once
+        if: inputs.kernel_version != '6.12' && !(inputs.android_version == 'android17' && inputs.kernel_version == '6.18')
+        working-directory: ${{ env.KERNEL_ROOT }}
+        shell: bash
+        run: |
+          set -eu
+          if [ -f build/build.sh ]; then exit 0; fi
+          delta="$RUNNER_TEMP/gki-defconfig.diff"
+          rc=0
+          diff "$DEFCONFIG.orig" "$DEFCONFIG" > "$delta" || rc=$?
+          if [ "$rc" -gt 1 ]; then exit "$rc"; fi
+          sed -n 's/^> [[:space:]]*//p' "$delta" > common/arch/arm64/configs/ksu.fragment
+          cp "$DEFCONFIG.orig" "$DEFCONFIG"
+
+      - name: Start runner telemetry
+        env:
+          DIAG_TOKEN: ${{ github.token }}
+        run: |
+          dir="$RUNNER_TEMP/diag-145"
+          mkdir -p "$dir"
+          touch "$dir/targets.log"
+          python3 -u scripts/runner_resources.py "$KERNEL_ROOT" "$dir" > "$dir/resources.jsonl" 2>"$dir/sampler.log" < /dev/null &
+          for i in {1..25}; do
+            test -f "$dir/ready" && exit 0
+            sleep 1
+          done
+          cat "$dir/sampler.log"
+          echo "::error::Runner telemetry did not acknowledge its first sample"
+          exit 1
+
       - name: 编译内核
         if: "!(inputs.android_version == 'android17' && inputs.kernel_version == '6.18')"
         uses: nick-fields/retry@v3
         with:
-          timeout_minutes: 90
-          max_attempts: 3
+          timeout_minutes: 60
+          max_attempts: 1
           retry_on: timeout
           command: |
+            tail -n 1 -f "$RUNNER_TEMP/diag-145/targets.log" &
+            tail_pid=$!
+            trap 'kill "$tail_pid" 2>/dev/null || true' EXIT
             echo "当前 KSU 最新提交日期: ${KSU_LATEST_COMMIT_DATE}"
             echo "当前 SUSFS 最新提交日期: ${SUSFS_LATEST_COMMIT_DATE}"
             set -ex
@@ -1300,8 +1361,7 @@ jobs:
                 strings ./out/arch/arm64/boot/Image | grep 'Linux version'
               else
                 FRAG="common/arch/arm64/configs/ksu.fragment"
-                diff "$DEFCONFIG.orig" "$DEFCONFIG" | grep '^>' | sed 's/^> //; s/^[[:space:]]*//' > "$FRAG" || true
-                cp "$DEFCONFIG.orig" "$DEFCONFIG"
+                test -f "$FRAG"
                 
                 echo "=== KSU Fragment 内容 ==="
                 cat "$FRAG"
@@ -1315,8 +1375,8 @@ jobs:
                 LTO_FLAG="--lto=thin"
                 
                 tools/bazel build --disk_cache=/home/runner/.cache/bazel \
-                --config=fast $LTO_FLAG $FRAG_FLAG \
-                //common:kernel_aarch64_dist || exit 1
+                --config=fast $LTO_FLAG $FRAG_FLAG --debug_make_verbosity=I --verbose_failures \
+                //common:kernel_aarch64_dist || { rc=$?; echo "bazel_exit=$rc"; exit "$rc"; }
                 
                 strings ./bazel-bin/common/kernel_aarch64/Image | grep 'Linux version'
               fi
@@ -1330,6 +1390,22 @@ jobs:
 
       # ==================== 准备 Boot 镜像 ====================
       # 复制编译产物到工作目录
+      - name: Finish runner telemetry
+        if: always()
+        run: |
+          dir="$RUNNER_TEMP/diag-145"
+          test -d "$dir" || exit 0
+          touch "$dir/stop"
+          sudo -n dmesg --time-format iso 2>/dev/null | grep -Ei 'oom-kill|out of memory|killed process|I/O error|EXT4-fs error' | tail -n 30 > "$dir/kernel-events.txt" || true
+          tail -n 2 "$dir/resources.jsonl" || true
+      - name: Archive runner telemetry
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runner-diagnostics-6.1.145-${{ github.run_id }}
+          path: ${{ runner.temp }}/diag-145/
+          if-no-files-found: ignore
+
       - name: 准备 Boot 镜像
         run: |
           mkdir -p bootimgs
